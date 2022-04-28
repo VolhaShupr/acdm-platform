@@ -57,7 +57,7 @@ contract Staking is AccessControl {
 
     /**
     * @dev Sets dao contract
-    * @param _staking Dao contract address
+    * @param _dao Dao contract address
     */
     function setDAO(address _dao) external onlyRole(ADMIN_ROLE) {
         dao = DAO(_dao);
