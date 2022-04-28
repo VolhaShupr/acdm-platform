@@ -15,7 +15,7 @@ dotenv.config();
 const { RINKEBY_API_URL, PRIVATE_KEY1, PRIVATE_KEY2, PRIVATE_KEY3, ETHERSCAN_API_KEY } = process.env;
 
 const config: HardhatUserConfig = {
-  solidity: "0.8.4",
+  solidity: "0.8.13",
   networks: {
     rinkeby: {
       url: RINKEBY_API_URL,

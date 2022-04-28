@@ -123,10 +123,11 @@ contract Staking is AccessControl {
     }
 
     function getRewardConfig() public view returns (uint period, uint periodMinUnit, uint rate) {
-        uint config_ = rewardConfig;
-        period = config_ >> 192;
-        periodMinUnit =  (config_ >> 128) & uint128(type(uint64).max);
-        rate = config_ & uint256(type(uint128).max);
+        uint config = rewardConfig;
+        period = config >> 192;
+        periodMinUnit = (config << 64) >> 192;
+        // rate = config_ & uint256(type(uint128).max);
+        rate = (config << 128) >> 128;
     }
 
     function _calculateReward(StakeData storage userStake) private {
