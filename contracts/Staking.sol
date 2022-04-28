@@ -3,12 +3,15 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
+import "./DAO.sol";
 
 contract Staking is AccessControl {
     using SafeERC20 for IERC20;
 
+    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant DAO_ROLE = keccak256("DAO_ROLE");
 
+    DAO public dao;
     IERC20 public stakingToken;
     IERC20 public rewardsToken;
 
@@ -33,13 +36,31 @@ contract Staking is AccessControl {
     event Staked(address indexed stakeholder, uint stakedAmount, uint availableReward);
     event Unstaked(address indexed stakeholder, uint unstakedAmount, uint availableReward);
     event Claimed(address indexed stakeholder, uint reward);
+    event RewardConfigUpdated(uint newPeriod, uint newPeriodMinUnit, uint newRate);
+    event UnstakeFreezePeriodUpdated(uint newPeriod);
 
-    constructor(address _stakingToken, address _rewardsToken, uint rewardPeriod, uint rewardPeriodMinUint, uint rewardRate) {
+    constructor(
+        address _stakingToken,
+        address _rewardsToken,
+        uint rewardPeriod,
+        uint rewardPeriodMinUint,
+        uint rewardRate,
+        uint unstakeLockPeriod
+    ) {
         stakingToken = IERC20(_stakingToken);
         rewardsToken = IERC20(_rewardsToken);
         rewardConfig = (((rewardPeriod << 64) + rewardPeriodMinUint) << 128) + rewardRate;
+        unstakeFreezePeriod = unstakeLockPeriod;
 
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
+    }
+
+    /**
+    * @dev Sets dao contract
+    * @param _staking Dao contract address
+    */
+    function setDAO(address _dao) external onlyRole(ADMIN_ROLE) {
+        dao = DAO(_dao);
     }
 
     function stake(uint amount) external {
@@ -60,7 +81,7 @@ contract Staking is AccessControl {
         uint amount = userStake.staked;
         require(amount > 0, "Nothing to unstake");
         require((block.timestamp - userStake.lastStakeDate) > unstakeFreezePeriod, "Tokens are locked");
-        // todo require no active dao votings
+        require(!dao.hasActiveVotings(msg.sender), "Stakers with active dao votings cannot unstake");
 
         _calculateReward(userStake);
 
@@ -83,12 +104,22 @@ contract Staking is AccessControl {
         emit Claimed(msg.sender, reward);
     }
 
+    function getStakedAmountOf(address account) external view returns (uint) {
+        return _balances[account].staked;
+    }
+
+    function getStakingTokenSupply() external view returns (uint) {
+        return stakingToken.totalSupply();
+    }
+
     function updateRewardConfig(uint newPeriod, uint newPeriodMinUnit, uint newRate) external onlyRole(DAO_ROLE) {
         rewardConfig = (((newPeriod << 64) + newPeriodMinUnit) << 128) + newRate;
+        emit RewardConfigUpdated(newPeriod, newPeriodMinUnit, newRate);
     }
 
     function updateUnstakeFreezePeriod(uint newUnstakeFreezePeriod) external onlyRole(DAO_ROLE) {
         unstakeFreezePeriod = newUnstakeFreezePeriod;
+        emit UnstakeFreezePeriodUpdated(newUnstakeFreezePeriod);
     }
 
     function getRewardConfig() public view returns (uint period, uint periodMinUnit, uint rate) {

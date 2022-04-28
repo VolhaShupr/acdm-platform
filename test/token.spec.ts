@@ -1,10 +1,7 @@
 import { expect } from "chai";
-import { ethers, network } from "hardhat";
-import { BigNumber, Contract } from "ethers";
-
-const standardTokenDecimals = 18;
-
-const toBigNumber = (amount: number, decimals = standardTokenDecimals): BigNumber => ethers.utils.parseUnits(amount.toString(), decimals);
+import { network } from "hardhat";
+import { Contract } from "ethers";
+import { deploy, toBigNumber } from "./helpers";
 
 describe("Token", () => {
   const decimals = 6;
@@ -15,9 +12,7 @@ describe("Token", () => {
   let clean: any; // snapshot
 
   before(async () => {
-    const tokenContractFactory = await ethers.getContractFactory("Token");
-    acdmToken = await tokenContractFactory.deploy("Academ Coin", "ACDM", decimals, initialSupply);
-    await acdmToken.deployed();
+    acdmToken = await deploy("Token", ["Academ Coin", "ACDM", decimals, initialSupply]);
 
     clean = await network.provider.request({ method: "evm_snapshot", params: [] });
   });
