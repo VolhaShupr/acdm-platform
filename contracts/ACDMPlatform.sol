@@ -20,9 +20,7 @@ contract ACDMPlatform is AccessControl, ReentrancyGuard {
 
     Token public immutable token;
     uint private immutable _tokenDecimalsMultiplier;
-
     uint public roundDuration;
-
     address public referralRewardHolder;
 
     enum RoundType { Sale, Trade }
@@ -79,8 +77,8 @@ contract ACDMPlatform is AccessControl, ReentrancyGuard {
     constructor(address _token, uint _roundDuration, address _referralRewardHolder) {
         token = Token(_token);
         _tokenDecimalsMultiplier = 10 ** token.decimals();
-        roundDuration = _roundDuration;
 
+        roundDuration = _roundDuration;
         currentRound.roundType = RoundType.Trade;
         currentRound.salePriceInEth = 0.00001 ether; // can be moved to constructor parameters
         currentRound.tradeEthVolume = 1 ether;
@@ -89,16 +87,14 @@ contract ACDMPlatform is AccessControl, ReentrancyGuard {
         refReward.saleRoundL2 = 300; // 3%
         refReward.tradeRoundL1 = 250; // 2.5%
         refReward.tradeRoundL2 = 250; // 2.5%
-
         referrers[msg.sender] = msg.sender; // register first referrer
-
         referralRewardHolder = _referralRewardHolder;
+
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
     function register(address referrer) external {
-        require(referrer != address(0), "Not valid referrer address");
-        require(referrer != msg.sender, "Not valid referrer address");
+        require(referrer != address(0) && referrer != msg.sender, "Not valid referrer address");
         require(referrers[referrer] != address(0), "Referrer should be registered");
         require(referrers[msg.sender] == address(0), "Reference already exists");
 
@@ -111,9 +107,11 @@ contract ACDMPlatform is AccessControl, ReentrancyGuard {
             revert InappropriateRound();
         }
 
-        // takes initial token price in the first round; uses formula: lastPrice*1,03+0,000004 in the next rounds
-        uint lastPrice = currentRound.salePriceInEth;
-        uint newTokenPrice = (currentRound.endDate > 0) ? (lastPrice * 103) / 100 + 0.000004 ether : lastPrice;
+        uint newTokenPrice = currentRound.salePriceInEth; // takes initial token price in the first round;
+        if (currentRound.endDate > 0) {
+            newTokenPrice = (newTokenPrice * 103) / 100 + 0.000004 ether; // uses formula: lastPrice*1,03+0,000004 in the next rounds
+        }
+
         uint newTokenAmount = _calcTokenAmount(currentRound.tradeEthVolume, newTokenPrice);
 
         currentRound.endDate = block.timestamp + roundDuration;
@@ -128,20 +126,22 @@ contract ACDMPlatform is AccessControl, ReentrancyGuard {
     }
 
     function buySaleTokens() external payable isRound(RoundType.Sale) nonReentrant {
-        require(currentRound.saleTokensLeft > 0, "No tokens left");
+        uint tokensLeft = currentRound.saleTokensLeft;
+        require(tokensLeft > 0, "No tokens left");
 
         uint amountToBuy = _calcTokenAmount(msg.value, currentRound.salePriceInEth);
         require(amountToBuy > 0, "Not enough ether to buy a token");
 
-        if (amountToBuy > currentRound.saleTokensLeft) {
-            amountToBuy = currentRound.saleTokensLeft; // can buy only available tokens
+        if (amountToBuy > tokensLeft) {
+            amountToBuy = tokensLeft; // can buy only available tokens
+        }
+        unchecked {
+            currentRound.saleTokensLeft -= amountToBuy;
         }
 
-        // todo unchecked
-        currentRound.saleTokensLeft -= amountToBuy;
         token.safeTransfer(msg.sender, amountToBuy);
 
-        uint spentEth = amountToBuy * currentRound.salePriceInEth / _tokenDecimalsMultiplier;
+        uint spentEth = _calcTokenCost(amountToBuy, currentRound.salePriceInEth);
         if (msg.value > spentEth) {
             _transferEth(msg.sender, msg.value - spentEth); // gives a change
         }
@@ -149,10 +149,10 @@ contract ACDMPlatform is AccessControl, ReentrancyGuard {
         // referral program
         address referrerL1 = referrers[msg.sender];
         if (referrerL1 != address(0)) {
-            uint rewardL1 = spentEth * refReward.saleRoundL1 / 10000;
+            uint rewardL1 = _calcPercent(spentEth, refReward.saleRoundL1);
             _transferEth(referrerL1, rewardL1);
 
-            uint rewardL2 = spentEth * refReward.saleRoundL2 / 10000;
+            uint rewardL2 = _calcPercent(spentEth, refReward.saleRoundL2);
             _transferEth(referrers[referrerL1], rewardL2);
         }
 
@@ -160,14 +160,13 @@ contract ACDMPlatform is AccessControl, ReentrancyGuard {
     }
 
     function startTradeRound() external {
-        if (currentRound.roundType == RoundType.Trade ||
-                (currentRound.endDate > block.timestamp && currentRound.saleTokensLeft > 0)) {
+        uint tokensLeft = currentRound.saleTokensLeft; // not sold tokens from the sale round
+        if (currentRound.roundType == RoundType.Trade || (currentRound.endDate > block.timestamp && tokensLeft > 0)) {
             revert InappropriateRound();
         }
 
-        // end sale round
-        if (currentRound.saleTokensLeft > 0) {
-            token.burn(address(this), currentRound.saleTokensLeft);
+        if (tokensLeft > 0) {
+            token.burn(address(this), tokensLeft);
             currentRound.saleTokensLeft = 0;
         }
 
@@ -178,10 +177,10 @@ contract ACDMPlatform is AccessControl, ReentrancyGuard {
     }
 
     function addOrder(uint amount, uint price) external isRound(RoundType.Trade) {
-        require(price > 0, "Not valid price");
-        require(amount > 0 && token.balanceOf(msg.sender) >= amount, "Not enough tokens");
+        require(price > 0 && amount > 0, "Not valid input price or amount");
+        require(token.balanceOf(msg.sender) >= amount, "Not enough tokens");
 
-        _currentOrderId += 1;
+        _currentOrderId = _currentOrderId + 1;
         Order storage order = _orders[_currentOrderId];
         order.owner = msg.sender;
         order.remainingAmount = amount;
@@ -207,7 +206,7 @@ contract ACDMPlatform is AccessControl, ReentrancyGuard {
 
     function redeemOrder(uint id) external payable isRound(RoundType.Trade) nonReentrant {
         Order storage order = _orders[id];
-        require(order.remainingAmount > 0, "Order doesn't exist or completed");
+        require(order.remainingAmount > 0, "Order doesn't exist or filled");
 
         uint amount = _calcTokenAmount(msg.value, order.price);
         require(amount > 0, "Not enough ether to buy a token");
@@ -215,16 +214,17 @@ contract ACDMPlatform is AccessControl, ReentrancyGuard {
         if (amount > order.remainingAmount) {
             amount = order.remainingAmount; // can buy only available tokens
         }
-
-        // todo unchecked
-        order.remainingAmount -= amount;
+        unchecked {
+            order.remainingAmount -= amount;
+        }
 
         token.safeTransfer(msg.sender, amount);
-        uint spentEth = amount * order.price / _tokenDecimalsMultiplier;
-        uint rewardL1 = spentEth * refReward.tradeRoundL1 / 10000;
-        uint rewardL2 = spentEth * refReward.tradeRoundL2 / 10000;
+        uint spentEth = _calcTokenCost(amount, order.price);
+        uint rewardL1 = _calcPercent(spentEth, refReward.tradeRoundL1);
+        uint rewardL2 = _calcPercent(spentEth, refReward.tradeRoundL2);
 
         _transferEth(order.owner, spentEth - rewardL1 - rewardL2);
+
         if (msg.value > spentEth) {
             _transferEth(msg.sender, msg.value - spentEth); // gives a change
         }
@@ -250,6 +250,14 @@ contract ACDMPlatform is AccessControl, ReentrancyGuard {
 
     function _calcTokenAmount(uint volumeInEth, uint priceInEth) private view returns(uint) {
         return volumeInEth * _tokenDecimalsMultiplier / priceInEth;
+    }
+
+    function _calcTokenCost(uint amount, uint priceInEth) private view returns(uint) {
+        return amount * priceInEth / _tokenDecimalsMultiplier;
+    }
+
+    function _calcPercent(uint amount, uint percent) private pure returns(uint) {
+        return amount * percent / 10000;
     }
 
     // --- ADMIN functions ---

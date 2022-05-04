@@ -284,7 +284,7 @@ describe("ACDM Platform", () => {
       await increaseTime(roundDuration);
       await platform.startTradeRound();
 
-      await expect(platform.addOrder(orderAcdmAmount, 0)).to.be.revertedWith("Not valid price");
+      await expect(platform.addOrder(orderAcdmAmount, 0)).to.be.revertedWith("Not valid input price or amount");
     });
 
     it("Should revert when amount is zero or not less than sender has", async () => {
@@ -294,7 +294,7 @@ describe("ACDM Platform", () => {
       await platform.startTradeRound();
 
       await expect(platform.addOrder(orderAcdmAmount, orderTokenPrice)).to.be.revertedWith("Not enough tokens");
-      await expect(platform.connect(account1).addOrder(0, orderTokenPrice)).to.be.revertedWith("Not enough tokens");
+      await expect(platform.connect(account1).addOrder(0, orderTokenPrice)).to.be.revertedWith("Not valid input price or amount");
     });
 
     it("Should add an order", async () => {
@@ -362,12 +362,12 @@ describe("ACDM Platform", () => {
     });
 
     it("Should revert when order doesn't exist", async () => {
-      await expect(platform.redeemOrder(2, { value: redeemEthValue })).to.be.revertedWith("Order doesn't exist or completed");
+      await expect(platform.redeemOrder(2, { value: redeemEthValue })).to.be.revertedWith("Order doesn't exist or filled");
     });
 
     it("Should revert when no tokens left in the order", async () => {
       await platform.connect(account1).redeemOrder(orderId1, { value: toBigNumber(10) });
-      await expect(platform.connect(account2).redeemOrder(orderId1, { value: redeemEthValue })).to.be.revertedWith("Order doesn't exist or completed");
+      await expect(platform.connect(account2).redeemOrder(orderId1, { value: redeemEthValue })).to.be.revertedWith("Order doesn't exist or filled");
     });
 
     it("Should revert when provided ether value is not enough to buy a token", async () => {
