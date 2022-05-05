@@ -1,4 +1,4 @@
-# 2 ACDM Platform
+# 7-8 ACDM Platform
 Sample contract
 
 ```shell

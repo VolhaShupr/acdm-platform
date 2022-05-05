@@ -6,9 +6,6 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./Token.sol";
 
-// import "hardhat/console.sol";
-// console.log("Changing greeting from '%s' to '%s'", greeting, _greeting);
-
 error InappropriateRound();
 
 contract ACDMPlatform is AccessControl, ReentrancyGuard {

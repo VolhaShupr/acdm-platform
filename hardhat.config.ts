@@ -12,11 +12,25 @@ import "./tasks";
 
 dotenv.config();
 
-const { RINKEBY_API_URL, PRIVATE_KEY1, PRIVATE_KEY2, PRIVATE_KEY3, ETHERSCAN_API_KEY } = process.env;
+const { RINKEBY_API_URL, PRIVATE_KEY1, PRIVATE_KEY2, PRIVATE_KEY3, ETHERSCAN_API_KEY, DEBUG } = process.env;
 
 const config: HardhatUserConfig = {
-  solidity: "0.8.13",
+  solidity: {
+    version: "0.8.13",
+    settings: {
+      optimizer: {
+        enabled: !DEBUG,
+        runs: 200,
+      },
+    },
+  },
   networks: {
+    hardhat: {
+      forking: {
+        url: RINKEBY_API_URL as string,
+        blockNumber: 10623714,
+      },
+    },
     rinkeby: {
       url: RINKEBY_API_URL,
       accounts: [`0x${PRIVATE_KEY1}`, `0x${PRIVATE_KEY2}`, `0x${PRIVATE_KEY3}`],

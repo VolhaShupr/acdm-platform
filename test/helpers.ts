@@ -16,7 +16,7 @@ export async function increaseTime(seconds: number) {
   await ethers.provider.send("evm_mine", []);
 }
 
-export async function deploy(name: string, args: any[]): Promise<Contract> {
+export async function deploy(name: string, args: any[] = []): Promise<Contract> {
   const contractFactory = await ethers.getContractFactory(name);
   const contract = await contractFactory.deploy(...args);
   await contract.deployed();
