@@ -1,12 +1,12 @@
 import { expect } from "chai";
 import { ethers, network } from "hardhat";
 import { Contract } from "ethers";
-import { deploy, toBigNumber, toMins, ZERO_ADDRESS } from "./helpers";
+import { deploy, toBigNumber, toMins, ZERO_ADDRESS } from "../helpers/helpers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import * as dotenv from "dotenv";
 dotenv.config();
 
-const tokenOutAddress = process.env.TOKEN_XXX_ADDRESS as string;
+const tokenOutAddress = process.env.XXX_TOKEN_ADDRESS as string;
 
 describe("ReferralRewardHolder", () => {
   const ethValue = toBigNumber(0.01);

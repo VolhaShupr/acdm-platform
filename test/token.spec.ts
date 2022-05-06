@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import { network } from "hardhat";
 import { Contract } from "ethers";
-import { deploy, toBigNumber } from "./helpers";
+import { deploy, toBigNumber } from "../helpers/helpers";
 
 describe("Token", () => {
   const decimals = 6;

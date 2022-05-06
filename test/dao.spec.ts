@@ -2,7 +2,7 @@ import { expect } from "chai";
 import { ethers, network } from "hardhat";
 import { Contract } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { DEFAULT_DECIMALS, deploy, increaseTime, toBigNumber, toDays, ZERO_ADDRESS } from "./helpers";
+import { DEFAULT_DECIMALS, deploy, increaseTime, toBigNumber, toDays, ZERO_ADDRESS } from "../helpers/helpers";
 
 interface Proposal {
   recipientAddress: string;

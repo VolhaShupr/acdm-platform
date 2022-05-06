@@ -2,7 +2,7 @@ import { expect } from "chai";
 import { ethers, network } from "hardhat";
 import { BigNumber, Contract } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { DEFAULT_DECIMALS, deploy, increaseTime, toBigNumber, toDays, toNumber, ZERO_ADDRESS } from "./helpers";
+import { DEFAULT_DECIMALS, deploy, increaseTime, toBigNumber, toDays, toNumber, ZERO_ADDRESS } from "../helpers/helpers";
 
 const ACDM_DECIMALS = 6;
 const inappropriateRoundError = "InappropriateRound";
@@ -68,7 +68,6 @@ describe("ACDM Platform", () => {
 
     // --- ACDM token deployment ---
     acdmToken = await deploy("Token", ["Academ Coin", "ACDM", ACDM_DECIMALS, 0]);
-    await acdmToken.deployed();
 
     // --- ACDM platform deployment ---
     platform = await deploy("ACDMPlatform", [acdmToken.address, roundDuration, referralRewardAccount.address]);

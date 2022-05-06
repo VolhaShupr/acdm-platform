@@ -2,7 +2,7 @@ import { expect } from "chai";
 import { ethers, network } from "hardhat";
 import { BigNumber, Contract } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { DEFAULT_DECIMALS, deploy, increaseTime, toBigNumber, toDays, toMins } from "./helpers";
+import { DEFAULT_DECIMALS, deploy, increaseTime, toBigNumber, toDays, toMins } from "../helpers/helpers";
 
 describe("Staking", () => {
   const tokenInitialBalance = toBigNumber(100);
