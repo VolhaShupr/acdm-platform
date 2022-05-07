@@ -43,6 +43,7 @@ contract ACDMPlatform is AccessControl, ReentrancyGuard {
     mapping (uint => Order) private _orders;
 
     // tried to pack into 2 uint256 variables, but the size increased
+    // 100 is 1%
     struct ReferralReward {
         uint saleRoundL1;
         uint saleRoundL2;
@@ -54,23 +55,78 @@ contract ACDMPlatform is AccessControl, ReentrancyGuard {
 
     mapping (address => address) public referrers;
 
+    /**
+    * @dev Emitted when user registers in referral program
+    * @param referrer Referrer address
+    * @param referee Referee address
+    */
     event UserRegistered(address indexed referee, address indexed referrer);
-    event RoundStarted(RoundType indexed roundType, uint tokenPrice, uint tokenAmount);
-    event RoundStarted(RoundType indexed roundType);
-    event SaleTokenBought(address indexed buyer, uint tokenAmount);
-    event OrderAdded(uint indexed id, address indexed owner, uint amount, uint price);
-    event OrderRemoved(uint indexed id, uint retrnedAmount);
-    event OrderRedeemed(uint indexed id, address indexed buyer, uint amount, uint price);
-    event RefRewardConfigUpdated(RoundType indexed roundType, uint newLevel1Value, uint newLevel2Value);
 
-    modifier isRound(RoundType roundType) {
-        if (currentRound.roundType == roundType && currentRound.endDate > block.timestamp) {
+    /**
+    * @dev Emitted when sale round is started
+    * @param round Current round (sale or trade)
+    * @param tokenPrice Ether price for one token
+    * @param tokenAmount Amount of tokens for sale
+    */
+    event RoundStarted(RoundType indexed round, uint tokenPrice, uint tokenAmount);
+
+    /**
+    * @dev Emitted when trade round is started
+    * @param round Current round (sale or trade)
+    */
+    event RoundStarted(RoundType indexed round);
+
+    /**
+    * @dev Emitted when someone buys tokens in the sale round
+    * @param buyer Tokens buyer address
+    * @param tokenAmount Token amount
+    * @param spentEth Spent ether value
+    */
+    event SaleTokenBought(address indexed buyer, uint tokenAmount, uint spentEth);
+
+    /**
+    * @dev Emitted when seller adds a new order
+    * @param id New order id
+    * @param owner Order creator
+    * @param amount Tokens amount to sell
+    * @param price Price in ether for one token
+    */
+    event OrderAdded(uint indexed id, address indexed owner, uint amount, uint price);
+
+    /**
+    * @dev Emitted when seller cancels the order
+    * @param id Order id to remove
+    * @param returnedAmount Amount of left tokens which have been transferred back to the order creator
+    */
+    event OrderRemoved(uint indexed id, uint returnedAmount);
+
+    /**
+    * @dev Emitted when buyer redeems the order
+    * @param id Order id to redeem
+    * @param buyer Buyer address
+    * @param amount Bought tokens amount
+    * @param price Price in ether for one token
+    */
+    event OrderRedeemed(uint indexed id, address indexed buyer, uint amount, uint price);
+
+    /**
+    * @dev Emitted when referral reward percents is updated
+    * @param round Current round
+    * @param newLevel1Value Reward for level 1 referrer, 100 is 1%
+    * @param newLevel2Value Reward for level 2 referrer, 100 is 1%
+    */
+    event RefRewardConfigUpdated(RoundType indexed round, uint newLevel1Value, uint newLevel2Value);
+
+    /// @dev Checks is `round` is active
+    modifier isRound(RoundType round) {
+        if (currentRound.roundType == round && currentRound.endDate > block.timestamp) {
             _;
         } else {
             revert InappropriateRound();
         }
     }
 
+    /// @dev Initializes the contract by setting a `token`, `roundDuration` and `referralRewardHolder`
     constructor(address _token, uint _roundDuration, address _referralRewardHolder) {
         token = Token(_token);
         _tokenDecimalsMultiplier = 10 ** token.decimals();
@@ -90,6 +146,18 @@ contract ACDMPlatform is AccessControl, ReentrancyGuard {
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
+    /**
+    * @dev Registers `msg.sender` in the referral program
+    * @param referrer Referrer address
+    *
+    * Requirements:
+    * - `referrer` cannot be the zero address
+    * - `referrer` cannot be the same address as `msg.sender`
+    * - `referrer` should be already registered
+    * - `msg.sender` should not have a reference
+    *
+    * Emits a {UserRegistered} event
+    */
     function register(address referrer) external {
         require(referrer != address(0) && referrer != msg.sender, "Not valid referrer address");
         require(referrers[referrer] != address(0), "Referrer should be registered");
@@ -99,6 +167,15 @@ contract ACDMPlatform is AccessControl, ReentrancyGuard {
         emit UserRegistered(msg.sender, referrer);
     }
 
+    /**
+    * @dev Starts a sale round
+    * Calculates and mints token amount for sale, sets ether price for one token
+    *
+    * Requirements:
+    * - previous round should be a trade and already ended
+    *
+    * Emits a {RoundStarted} event
+    */
     function startSaleRound() external {
         if (currentRound.roundType == RoundType.Sale || currentRound.endDate > block.timestamp) {
             revert InappropriateRound();
@@ -122,6 +199,17 @@ contract ACDMPlatform is AccessControl, ReentrancyGuard {
         emit RoundStarted(currentRound.roundType, newTokenPrice, newTokenAmount);
     }
 
+    /**
+    * @dev Transfers tokens to `msg.sender` for `msg.value`, gives a change
+    * Transfers rewards to referrers
+    *
+    * Requirements:
+    * - current round should be a sale
+    * - should remain some tokens in the sale round
+    * - `msg.value` should be enough for buying min amount of tokens
+    *
+    * Emits a {SaleTokenBought} event
+    */
     function buySaleTokens() external payable isRound(RoundType.Sale) nonReentrant {
         uint tokensLeft = currentRound.saleTokensLeft;
         require(tokensLeft > 0, "No tokens left");
@@ -153,9 +241,18 @@ contract ACDMPlatform is AccessControl, ReentrancyGuard {
             _transferEth(referrers[referrerL1], rewardL2);
         }
 
-        emit SaleTokenBought(msg.sender, amountToBuy);
+        emit SaleTokenBought(msg.sender, amountToBuy, spentEth);
     }
 
+    /**
+    * @dev Starts a trade round
+    * Burns left from the sale round tokens
+    *
+    * Requirements:
+    * - previous round should be a sale and already ended
+    *
+    * Emits a {RoundStarted} event
+    */
     function startTradeRound() external {
         uint tokensLeft = currentRound.saleTokensLeft; // not sold tokens from the sale round
         if (currentRound.roundType == RoundType.Trade || (currentRound.endDate > block.timestamp && tokensLeft > 0)) {
@@ -173,6 +270,18 @@ contract ACDMPlatform is AccessControl, ReentrancyGuard {
         emit RoundStarted(currentRound.roundType);
     }
 
+    /**
+    * @dev Creates a new order
+    * @param amount Tokens amount to sell
+    * @param price Ether price for one token
+    *
+    * Requirements:
+    * - current round should be a trade
+    * - `amount` and `price` cannot be zero
+    * - `msg.value` should have enough tokens to place
+    *
+    * Emits a {OrderAdded} event
+    */
     function addOrder(uint amount, uint price) external isRound(RoundType.Trade) {
         require(price > 0 && amount > 0, "Not valid input price or amount");
         require(token.balanceOf(msg.sender) >= amount, "Not enough tokens");
@@ -188,6 +297,15 @@ contract ACDMPlatform is AccessControl, ReentrancyGuard {
         emit OrderAdded(_currentOrderId, msg.sender, amount, price);
     }
 
+    /**
+    * @dev Cancels the order
+    * @param id Order id to remove
+    *
+    * Requirements:
+    * - order should exist with the order creator
+    *
+    * Emits a {OrderRemoved} event
+    */
     function removeOrder(uint id) external {
         Order storage order = _orders[id];
         require(msg.sender == order.owner, "Not valid order id");
@@ -201,6 +319,19 @@ contract ACDMPlatform is AccessControl, ReentrancyGuard {
         emit OrderRemoved(id, remainingAmount);
     }
 
+    /**
+    * @dev Fills or partially fills the order and transfers tokens to `msg.sender` for `msg.value`, gives a change
+    * Transfers rewards to referrers
+    * @param id Order id to redeem
+    *
+    * Requirements:
+    * - current round should be a trade
+    * - order should exist
+    * - should remain some tokens in the order
+    * - `msg.value` should be enough for buying min amount of tokens
+    *
+    * Emits a {OrderRedeemed} event
+    */
     function redeemOrder(uint id) external payable isRound(RoundType.Trade) nonReentrant {
         Order storage order = _orders[id];
         require(order.remainingAmount > 0, "Order doesn't exist or filled");
@@ -240,24 +371,53 @@ contract ACDMPlatform is AccessControl, ReentrancyGuard {
         emit OrderRedeemed(id, msg.sender, amount, order.price);
     }
 
+    /**
+    * @dev Transfers ether in `amount` to recipient address
+    * @param to Recipient address
+    * @param amount Ether amount to transfer
+    */
     function _transferEth(address to, uint amount) private {
         (bool success, ) = to.call{value: amount}("");
         require(success, "Ether transfer failed");
     }
 
+    /**
+    * @dev Returns token amount
+    * @param volumeInEth Ether total amount
+    * @param priceInEth Price in ether for one token
+    */
     function _calcTokenAmount(uint volumeInEth, uint priceInEth) private view returns(uint) {
         return volumeInEth * _tokenDecimalsMultiplier / priceInEth;
     }
 
+    /**
+    * @dev Returns token ether total amount
+    * @param amount Tokens amount
+    * @param priceInEth Price in ether for one token
+    */
     function _calcTokenCost(uint amount, uint priceInEth) private view returns(uint) {
         return amount * priceInEth / _tokenDecimalsMultiplier;
     }
 
+    /**
+    * @dev Returns the share
+    * @param amount Tokens amount
+    * @param percent Percent value, 100 is 1%
+    */
     function _calcPercent(uint amount, uint percent) private pure returns(uint) {
         return amount * percent / 10000;
     }
 
     // --- ADMIN functions ---
+    /**
+    * @dev Withdraws contract ether `amount` to recipient address
+    * @param to Recipient address
+    * @param amount Ether amount to withdraw
+    *
+    * Requirements:
+    * - `to` cannot be the zero address
+    * - `amount` and contract balance cannot be the zero
+    */
     function withdrawEth(address to, uint amount) external onlyRole(ADMIN_ROLE) {
         require(to != address(0), "Not valid recipient address");
         require(amount > 0 && amount <= address(this).balance, "Insufficient ether amount to transfer");
@@ -265,6 +425,14 @@ contract ACDMPlatform is AccessControl, ReentrancyGuard {
         _transferEth(to, amount);
     }
 
+    /**
+    * @dev Sets new values of referral rewards
+    * @param round Current round
+    * @param level1 Reward for level 1 referrer, 100 is 1%
+    * @param level2 Reward for level 2 referrer, 100 is 1%
+    *
+    * Emits a {RefRewardConfigUpdated} event
+    */
     function updateRefRewards(RoundType round, uint level1, uint level2) external onlyRole(DAO_ROLE) {
         if (round == RoundType.Sale) {
             refReward.saleRoundL1 = level1;
@@ -276,10 +444,18 @@ contract ACDMPlatform is AccessControl, ReentrancyGuard {
         emit RefRewardConfigUpdated(round, level1, level2);
     }
 
+    /**
+    * @dev Sets a new value of the round duration
+    * @param newRoundDuration New round duration
+    */
     function updateRoundDuration(uint newRoundDuration) external onlyRole(ADMIN_ROLE) {
         roundDuration = newRoundDuration;
     }
 
+    /**
+    * @dev Sets a new address of the referral reward holder account
+    * @param newReferralRewardHolder New referral reward holder address
+    */
     function updateReferralRewardHolder(address newReferralRewardHolder) external onlyRole(ADMIN_ROLE) {
         referralRewardHolder = newReferralRewardHolder;
     }

@@ -28,7 +28,7 @@ const config: HardhatUserConfig = {
     hardhat: {
       forking: {
         url: RINKEBY_API_URL as string,
-        blockNumber: 10623714,
+        blockNumber: 10622734,
       },
     },
     rinkeby: {

@@ -6,7 +6,7 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import * as dotenv from "dotenv";
 dotenv.config();
 
-const tokenOutAddress = process.env.XXX_TOKEN_ADDRESS as string;
+const tokenOutAddress = <string>process.env.XXX_TOKEN_ADDRESS;
 
 describe("ReferralRewardHolder", () => {
   const ethValue = toBigNumber(0.01);
@@ -31,6 +31,12 @@ describe("ReferralRewardHolder", () => {
 
     const daoRole = ethers.utils.id("DAO_ROLE");
     await rewardContract.grantRole(daoRole, dao.address);
+
+    const ownerAddressInFork = <string>process.env.ACCOUNT1_ADDRESS;
+    await network.provider.request({ method: "hardhat_impersonateAccount", params: [ownerAddressInFork] });
+    const signer = await ethers.getSigner(ownerAddressInFork);
+    const minterRole = ethers.utils.id("MINTER_ROLE");
+    await tokenOut.connect(signer).grantRole(minterRole, rewardContract.address);
 
     clean = await network.provider.request({ method: "evm_snapshot", params: [] });
   });

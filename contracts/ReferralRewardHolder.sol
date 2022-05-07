@@ -31,8 +31,19 @@ contract ReferralRewardHolder is AccessControl {
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
+    /// @dev Receives ether to contract balance
     receive() external payable { }
 
+    /**
+    * @dev Withdraws ether to recipient address
+    * @param to Recipient address
+    *
+    * Requirements:
+    * - `to` cannot be the zero address
+    * - contract balance cannot be the zero
+    *
+    * Emits a {Transferred} event
+    */
     function withdrawEth(address to) external onlyRole(DAO_ROLE) {
         require(to != address(0), "Not valid recipient address");
         require(address(this).balance > 0, "Nothing to withdraw");
@@ -43,6 +54,16 @@ contract ReferralRewardHolder is AccessControl {
         emit Transferred(to, address(this).balance);
     }
 
+    /**
+    * @dev Swaps contract ether to token via uniswap router and then burns these tokens
+    * @param tokenOut Output token address
+    * @param deadlineFromNow Period after which the swap transaction will revert
+    *
+    * Requirements:
+    * - contract balance cannot be the zero
+    *
+    * Emits a {Swapped} event
+    */
     function swapEthToTokenAndBurn(address tokenOut, uint deadlineFromNow) external onlyRole(DAO_ROLE) {
         uint deadline = block.timestamp + deadlineFromNow;
         uint amountIn = address(this).balance;

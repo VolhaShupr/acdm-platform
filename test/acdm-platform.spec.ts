@@ -172,7 +172,7 @@ describe("ACDM Platform", () => {
 
       await expect(buyTokenTx)
         .to.emit(platform, "SaleTokenBought")
-        .withArgs(account1Address, soldAcdmAmount1);
+        .withArgs(account1Address, soldAcdmAmount1, ethValue1);
 
       expect(await ethers.provider.getBalance(platformAddress)).to.equal(ethValue1);
       // await expect(await buyTokenTx).to.changeEtherBalance(platform, ethValue1);
@@ -192,7 +192,7 @@ describe("ACDM Platform", () => {
 
       await expect(tx)
         .to.emit(platform, "SaleTokenBought")
-        .withArgs(account1Address, acdmAmount);
+        .withArgs(account1Address, acdmAmount, spentEth);
 
       await expect(await tx).to.changeEtherBalances(
         [account1, platform, owner],
@@ -216,7 +216,7 @@ describe("ACDM Platform", () => {
 
       await expect(tx)
         .to.emit(platform, "SaleTokenBought")
-        .withArgs(account1Address, acdmAmount);
+        .withArgs(account1Address, acdmAmount, spentEth);
 
       await expect(await tx).to.changeEtherBalances(
         [account1, platform, account2, account3],
